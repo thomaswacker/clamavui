@@ -124,6 +124,8 @@ pub fn start_scan(
         }
         send(ScanEvent::Started);
 
+        // If abort() ran before the child was stored, the process was already killed above;
+        // skip reading so we do not wait on output.
         if !worker.aborted.load(Ordering::SeqCst) {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 if let Some(parsed) = parse_scan_line(&line) {
@@ -287,7 +289,7 @@ mod tests {
     #[test]
     fn abort_kills_running_scan_and_reports_aborted() {
         let dir = tempfile::tempdir().unwrap();
-        let bin = fake_clamscan(dir.path(), "sleep 30");
+        let bin = fake_clamscan(dir.path(), "exec sleep 30");
         let (tx, rx) = channel();
         let handle = start_scan(bin, PathBuf::from("/db"), vec![PathBuf::from("/a")], tx, || {});
         assert!(matches!(rx.recv_timeout(Duration::from_secs(10)).unwrap(), ScanEvent::Started));
@@ -302,7 +304,7 @@ mod tests {
     #[test]
     fn abort_before_started_still_kills_process() {
         let dir = tempfile::tempdir().unwrap();
-        let bin = fake_clamscan(dir.path(), "sleep 30");
+        let bin = fake_clamscan(dir.path(), "exec sleep 30");
         let (tx, rx) = channel();
         let handle = start_scan(bin, PathBuf::from("/db"), vec![PathBuf::from("/a")], tx, || {});
         let t = std::time::Instant::now();

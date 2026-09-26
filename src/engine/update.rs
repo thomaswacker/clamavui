@@ -155,6 +155,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn worker_streams_stdout_and_finishes() {
+        let _guard = crate::engine::test_support::exec_lock();
         use std::os::unix::fs::PermissionsExt;
         use std::sync::mpsc;
         use std::time::Duration;
@@ -210,6 +211,7 @@ mod tests {
 
     #[test]
     fn spawn_failure_reports_spawn_failed() {
+        let _guard = crate::engine::test_support::exec_lock();
         use std::sync::mpsc;
         use std::time::Duration;
 

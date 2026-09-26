@@ -258,6 +258,7 @@ mod tests {
 
     #[test]
     fn spawn_failure_reports_spawn_failed_and_notifies() {
+        let _guard = crate::engine::test_support::exec_lock();
         let (tx, rx) = channel();
         let notified = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&notified);
@@ -280,6 +281,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn worker_streams_lines_and_finishes_with_exit_code() {
+        let _guard = crate::engine::test_support::exec_lock();
         use std::path::Path;
         let dir = tempfile::tempdir().unwrap();
         let bin = fake_clamscan(dir.path(), "echo '/a/ok.txt: OK'; echo '/a/bad.txt: Eicar-Test-Signature FOUND'; exit 1");
@@ -296,6 +298,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn abort_kills_running_scan_and_reports_aborted() {
+        let _guard = crate::engine::test_support::exec_lock();
         let dir = tempfile::tempdir().unwrap();
         let bin = fake_clamscan(dir.path(), "exec sleep 30");
         let (tx, rx) = channel();
@@ -311,6 +314,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn abort_before_started_still_kills_process() {
+        let _guard = crate::engine::test_support::exec_lock();
         let dir = tempfile::tempdir().unwrap();
         let bin = fake_clamscan(dir.path(), "exec sleep 30");
         let (tx, rx) = channel();

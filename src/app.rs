@@ -7,6 +7,7 @@ use crate::engine::update::{ensure_freshclam_conf, start_update, UpdateEvent};
 use crate::state::Model;
 use crate::ui::results_panel::{self, rename_field_id, FindingAction};
 use crate::ui::scan_panel::{self, ScanAction};
+use crate::ui::settings;
 use crate::ui::status_panel::{self, StatusAction};
 use chrono::Utc;
 use std::path::PathBuf;
@@ -275,6 +276,30 @@ impl ClamApp {
             self.confirm_delete = None;
         }
     }
+
+    fn apply_settings_change(&mut self) {
+        self.binaries = locate_all(&self.settings);
+        if let Err(e) = self.settings.save(&self.paths.settings_file()) {
+            log::warn!("could not save settings: {e}");
+        }
+    }
+
+    fn show_missing_banner(&mut self, ui: &mut egui::Ui) {
+        let missing = self.binaries.missing();
+        if missing.is_empty() {
+            return;
+        }
+        let names: Vec<&str> = missing.iter().map(|t| t.name()).collect();
+        ui.horizontal(|ui| {
+            ui.colored_label(
+                egui::Color32::LIGHT_RED,
+                format!("ClamAV-Programme nicht gefunden: {}.", names.join(", ")),
+            );
+            if ui.link("Einstellungen öffnen").clicked() {
+                self.show_settings = true;
+            }
+        });
+    }
 }
 
 impl eframe::App for ClamApp {
@@ -287,6 +312,14 @@ impl eframe::App for ClamApp {
         let now = Utc::now();
         egui::Panel::top(egui::Id::new("status_panel")).show(ui, |ui| {
             ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("⚙ Einstellungen").clicked() {
+                        self.show_settings = !self.show_settings;
+                    }
+                });
+            });
+            self.show_missing_banner(ui);
             let can_update = self.model.can_start_update(self.binaries.freshclam.is_some());
             match status_panel::show(ui, &self.model, now, can_update, self.first_update_hint()) {
                 StatusAction::StartUpdate => self.start_update(&ctx),
@@ -308,7 +341,11 @@ impl eframe::App for ClamApp {
             }
         });
         self.show_delete_confirmation(&ctx);
-        // `show_settings` is wired in a later task.
-        let _ = &self.show_settings;
+        let mut open = self.show_settings;
+        let changed = settings::show(&ctx, &mut open, &mut self.settings, &self.binaries, &self.paths);
+        self.show_settings = open;
+        if changed {
+            self.apply_settings_change();
+        }
     }
 }

@@ -10,6 +10,12 @@ Graphical front end for the ClamAV virus scanner (Linux, Windows, macOS), writte
   (Debian: `apt install libxkbcommon-dev libgtk-3-dev libwayland-dev`).
 - Rust 1.95 or newer (`rustup update` if your toolchain is older).
 
+## Downloads and CI
+
+Every push to `main` builds and tests on Linux, Windows, macOS (Apple Silicon) and macOS (Intel)
+via GitHub Actions; the binaries are attached to the workflow run as artifacts. Pushing a tag
+`v*` additionally publishes a GitHub release with all four archives.
+
 ## Build and run
 
     cargo run --release

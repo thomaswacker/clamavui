@@ -1,5 +1,5 @@
 use crate::actions::{delete_file, rename_file, suggested_rename, trash_file, ActionError};
-use crate::config::{AppPaths, Settings};
+use crate::config::{clamp_zoom, AppPaths, Settings};
 use crate::engine::locate::{locate_all, ClamBinaries};
 use crate::engine::scan::{start_scan, ScanEvent, ScanHandle};
 use crate::engine::signatures::{read_status, SignatureStatus};
@@ -33,6 +33,7 @@ impl ClamApp {
             log::error!("could not create app directories: {e}");
         }
         let settings = Settings::load(&paths.settings_file());
+        cc.egui_ctx.set_zoom_factor(settings.zoom_factor);
         let binaries = locate_all(&settings);
         log::info!("binaries: {binaries:?}");
         let mut app = Self {
@@ -281,7 +282,20 @@ impl ClamApp {
         }
     }
 
+    /// Mirror a zoom change made with Ctrl+/Ctrl- (egui's built-in shortcut) into the settings.
+    fn sync_zoom_from_ctx(&mut self, ctx: &egui::Context) {
+        let current = clamp_zoom(ctx.zoom_factor());
+        if (current - self.settings.zoom_factor).abs() > f32::EPSILON {
+            self.settings.zoom_factor = current;
+            if let Err(e) = self.settings.save(&self.paths.settings_file()) {
+                log::warn!("could not save settings: {e}");
+            }
+        }
+    }
+
     fn apply_settings_change(&mut self, ctx: &egui::Context) {
+        self.settings.zoom_factor = clamp_zoom(self.settings.zoom_factor);
+        ctx.set_zoom_factor(self.settings.zoom_factor);
         self.binaries = locate_all(&self.settings);
         match self.settings.save(&self.paths.settings_file()) {
             Ok(()) => self.settings_error = None,
@@ -314,6 +328,7 @@ impl ClamApp {
 impl eframe::App for ClamApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_events(ctx);
+        self.sync_zoom_from_ctx(ctx);
     }
 
     /// Kill a running clamscan when the window closes, so it doesn't keep running headless.

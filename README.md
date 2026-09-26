@@ -14,6 +14,18 @@ Graphical front end for the ClamAV virus scanner (Linux, Windows, macOS), writte
 
     cargo run --release
 
+## Display size and window icon
+
+The UI starts at 1.4× zoom, which suits high-density displays. Change it under
+"Einstellungen → Darstellungsgröße" or with Ctrl+Plus / Ctrl+Minus; the value is saved.
+
+On X11, Windows and macOS the window icon (`assets/icon.png`) is set at runtime. Wayland
+desktops take the icon from a `.desktop` file instead:
+
+    install -Dm644 assets/clamavui.desktop ~/.local/share/applications/clamavui.desktop
+    install -Dm644 assets/icon.png ~/.local/share/icons/hicolor/256x256/apps/clamavui.png
+    install -Dm755 target/release/clamavui ~/.local/bin/clamavui
+
 ## Signatures
 
 The app maintains its own signature database in the user's data directory

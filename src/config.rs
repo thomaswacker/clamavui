@@ -34,14 +34,30 @@ impl AppPaths {
     }
 }
 
+/// Default UI zoom; egui's 14 px base font is small on high-density displays.
+pub const DEFAULT_ZOOM: f32 = 1.4;
+pub const MIN_ZOOM: f32 = 1.0;
+pub const MAX_ZOOM: f32 = 2.0;
+
+/// Clamp a zoom factor into the supported range; NaN falls back to the default.
+pub fn clamp_zoom(zoom: f32) -> f32 {
+    if zoom.is_nan() {
+        DEFAULT_ZOOM
+    } else {
+        zoom.clamp(MIN_ZOOM, MAX_ZOOM)
+    }
+}
+
 /// User settings persisted as JSON. Empty path strings mean "auto-detect".
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub clamscan_path: String,
     pub freshclam_path: String,
     pub sigtool_path: String,
     pub check_signatures_on_start: bool,
+    /// UI scale applied via `egui::Context::set_zoom_factor`.
+    pub zoom_factor: f32,
 }
 
 impl Default for Settings {
@@ -51,6 +67,7 @@ impl Default for Settings {
             freshclam_path: String::new(),
             sigtool_path: String::new(),
             check_signatures_on_start: true,
+            zoom_factor: DEFAULT_ZOOM,
         }
     }
 }
@@ -58,7 +75,7 @@ impl Default for Settings {
 impl Settings {
     /// Load settings; a missing or unreadable file yields defaults (and a warning in the log).
     pub fn load(path: &Path) -> Settings {
-        match fs::read_to_string(path) {
+        let mut settings = match fs::read_to_string(path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
                 log::warn!("settings file {} is invalid: {e}", path.display());
                 Settings::default()
@@ -68,7 +85,9 @@ impl Settings {
                 log::warn!("settings file {} unreadable: {e}", path.display());
                 Settings::default()
             }
-        }
+        };
+        settings.zoom_factor = clamp_zoom(settings.zoom_factor);
+        settings
     }
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
@@ -92,6 +111,32 @@ mod tests {
     }
 
     #[test]
+    fn default_zoom_is_one_point_four() {
+        assert_eq!(Settings::default().zoom_factor, DEFAULT_ZOOM);
+        assert_eq!(DEFAULT_ZOOM, 1.4);
+    }
+
+    #[test]
+    fn clamp_zoom_limits_to_valid_range() {
+        assert_eq!(clamp_zoom(0.5), MIN_ZOOM);
+        assert_eq!(clamp_zoom(3.0), MAX_ZOOM);
+        assert_eq!(clamp_zoom(1.25), 1.25);
+        assert_eq!(clamp_zoom(f32::NAN), DEFAULT_ZOOM);
+    }
+
+    #[test]
+    fn zoom_roundtrips_and_is_clamped_on_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("settings.json");
+        let s = Settings { zoom_factor: 1.6, ..Settings::default() };
+        s.save(&file).unwrap();
+        assert_eq!(Settings::load(&file).zoom_factor, 1.6);
+
+        fs::write(&file, r#"{"zoom_factor": 9.0}"#).unwrap();
+        assert_eq!(Settings::load(&file).zoom_factor, MAX_ZOOM);
+    }
+
+    #[test]
     fn save_then_load_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("sub").join("settings.json");
@@ -100,6 +145,7 @@ mod tests {
             freshclam_path: String::new(),
             sigtool_path: "C:\\ClamAV\\sigtool.exe".into(),
             check_signatures_on_start: false,
+            zoom_factor: 1.25,
         };
         s.save(&file).unwrap();
         assert_eq!(Settings::load(&file), s);

@@ -12,12 +12,18 @@ fn main() -> eframe::Result {
             db_dir: std::path::PathBuf::from("clamavui-db"),
         }
     });
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("ClamAV UI")
+        .with_app_id("clamavui")
+        .with_inner_size([1000.0, 780.0])
+        .with_min_inner_size([720.0, 520.0])
+        .with_drag_and_drop(true);
+    match eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")) {
+        Ok(icon) => viewport = viewport.with_icon(icon),
+        Err(e) => log::warn!("window icon could not be decoded: {e}"),
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("ClamAV UI")
-            .with_inner_size([900.0, 700.0])
-            .with_min_inner_size([640.0, 480.0])
-            .with_drag_and_drop(true),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(

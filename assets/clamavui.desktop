@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ClamAV UI
+Comment=Graphical front end for the ClamAV virus scanner
+Exec=clamavui
+Icon=clamavui
+Terminal=false
+Categories=System;Security;
+StartupWMClass=clamavui

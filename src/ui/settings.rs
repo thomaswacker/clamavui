@@ -1,4 +1,4 @@
-use crate::config::{AppPaths, Settings};
+use crate::config::{AppPaths, Settings, MAX_ZOOM, MIN_ZOOM};
 use crate::engine::locate::{ClamBinaries, Tool};
 use egui::{Color32, RichText};
 
@@ -23,9 +23,10 @@ fn path_row(ui: &mut egui::Ui, tool: Tool, value: &mut String, resolved: Option<
     committed
 }
 
-/// Settings window. Returns true when editing of a path field ended or the checkbox toggled
-/// (caller re-locates binaries and saves). `settings_error` is rendered at the bottom when set;
-/// a failure to open the DB directory is written into it directly.
+/// Settings window. Returns true when editing of a path field ended, the checkbox toggled or
+/// the zoom slider was released (caller re-locates binaries and saves). The zoom is applied
+/// live while dragging. `settings_error` is rendered at the bottom when set; a failure to open
+/// the DB directory is written into it directly.
 pub fn show(
     ctx: &egui::Context,
     open: &mut bool,
@@ -56,6 +57,22 @@ pub fn show(
                         *settings_error = Some(format!("Ordner konnte nicht geöffnet werden: {e}"));
                     }
                 }
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label("Darstellungsgröße:");
+                let slider = ui.add(
+                    egui::Slider::new(&mut settings.zoom_factor, MIN_ZOOM..=MAX_ZOOM)
+                        .step_by(0.05)
+                        .fixed_decimals(2)
+                        .suffix("×"),
+                );
+                if slider.changed() {
+                    ctx.set_zoom_factor(settings.zoom_factor);
+                }
+                // Persist once the drag ends (or after a click/keyboard edit), not per pixel moved.
+                changed |= slider.drag_stopped() || (slider.changed() && !slider.dragged());
+                ui.label(RichText::new("auch Strg + / Strg −").small().weak());
             });
             ui.separator();
             changed |= ui

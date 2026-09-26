@@ -229,6 +229,14 @@ mod tests {
     }
 
     #[test]
+    fn access_denied_without_suffix_is_other() {
+        assert_eq!(
+            parse_scan_line("/tmp/x/sub/locked: Access denied"),
+            Some(ScanLine::Other("/tmp/x/sub/locked: Access denied".into()))
+        );
+    }
+
+    #[test]
     fn abort_without_child_does_not_panic() {
         ScanHandle::default().abort();
     }

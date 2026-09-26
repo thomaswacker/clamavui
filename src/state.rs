@@ -156,7 +156,10 @@ impl Model {
                         self.issues.push(format!("{}: {message}", path.display()));
                     }
                     ScanLine::Warning(message) => self.issues.push(message),
-                    ScanLine::Other(text) => log::info!("clamscan: {text}"),
+                    ScanLine::Other(text) => {
+                        log::info!("clamscan: {text}");
+                        self.issues.push(text);
+                    }
                 }
             }
             ScanEvent::Finished { exit_code, duration } => {
@@ -420,6 +423,15 @@ mod tests {
         assert!(!m.apply_update_event(UpdateEvent::Finished { exit_code: Some(0) }));
         assert!(matches!(m.phase, Phase::Scanning(_)), "a stray update event must not end a running scan");
         assert!(m.update_error.is_none());
+    }
+
+    #[test]
+    fn other_lines_are_surfaced_as_issues() {
+        let mut m = with_signatures();
+        m.add_target(PathBuf::from("/a"));
+        m.begin_scan().unwrap();
+        m.apply_scan_event(ScanEvent::Line(ScanLine::Other("/a/locked: Access denied".into())));
+        assert_eq!(m.issues, vec!["/a/locked: Access denied"]);
     }
 
     #[test]

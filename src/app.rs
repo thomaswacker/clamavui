@@ -156,6 +156,8 @@ impl ClamApp {
             Some("Scan oder Update läuft")
         } else if self.binaries.clamscan.is_none() {
             Some("clamscan nicht gefunden (siehe Einstellungen)")
+        } else if self.model.signature_status.is_none() {
+            Some("Erst Signaturstand prüfen (Link „Jetzt prüfen“)")
         } else if !self.model.signatures_available() {
             Some("Erst Signaturen laden")
         } else if self.model.targets.is_empty() {
@@ -315,6 +317,7 @@ impl eframe::App for ClamApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let was_open = self.show_settings;
         let ctx = ui.ctx().clone();
         let now = Utc::now();
         egui::Panel::top(egui::Id::new("status_panel")).show(ui, |ui| {
@@ -330,6 +333,7 @@ impl eframe::App for ClamApp {
             let can_update = self.model.can_start_update(self.binaries.freshclam.is_some());
             match status_panel::show(ui, &self.model, now, can_update, self.first_update_hint()) {
                 StatusAction::StartUpdate => self.start_update(&ctx),
+                StatusAction::Refresh => self.refresh_status(&ctx),
                 StatusAction::None => {}
             }
             ui.add_space(4.0);
@@ -357,7 +361,7 @@ impl eframe::App for ClamApp {
             &self.paths,
             self.settings_error.as_deref(),
         );
-        let closed_now = self.show_settings && !open;
+        let closed_now = was_open && !open;
         self.show_settings = open;
         if changed || closed_now {
             self.apply_settings_change(&ctx);

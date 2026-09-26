@@ -8,6 +8,7 @@ use egui::{Color32, RichText};
 pub enum StatusAction {
     None,
     StartUpdate,
+    Refresh,
 }
 
 fn dot(ui: &mut egui::Ui, color: Color32) {
@@ -43,7 +44,7 @@ fn status_line(model: &Model, now: DateTime<Utc>) -> (Color32, String) {
     (color, text)
 }
 
-/// Signature status row with update button and collapsible update log.
+/// Signature status row with update button, a "check now" link and collapsible update log.
 pub fn show(
     ui: &mut egui::Ui,
     model: &Model,
@@ -64,6 +65,9 @@ pub fn show(
                 ui.label("Läuft…");
             } else if ui.add_enabled(can_update, egui::Button::new("Aktualisieren")).clicked() {
                 action = StatusAction::StartUpdate;
+            }
+            if model.is_idle() && ui.link("Jetzt prüfen").clicked() {
+                action = StatusAction::Refresh;
             }
         });
     });

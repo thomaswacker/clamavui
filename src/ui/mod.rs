@@ -1,3 +1,4 @@
+pub mod scan_panel;
 pub mod status_panel;
 
 /// German thousands grouping: 3627854 → "3.627.854".

@@ -1,11 +1,13 @@
 use crate::config::{AppPaths, Settings};
 use crate::engine::locate::{locate_all, ClamBinaries};
-use crate::engine::scan::{ScanEvent, ScanHandle};
+use crate::engine::scan::{start_scan, ScanEvent, ScanHandle};
 use crate::engine::signatures::{read_status, SignatureStatus};
 use crate::engine::update::{ensure_freshclam_conf, start_update, UpdateEvent};
 use crate::state::Model;
+use crate::ui::scan_panel::{self, ScanAction};
 use crate::ui::status_panel::{self, StatusAction};
 use chrono::Utc;
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
 pub struct ClamApp {
@@ -119,6 +121,74 @@ impl ClamApp {
     fn first_update_hint(&self) -> bool {
         !self.model.signatures_available()
     }
+
+    fn start_scan(&mut self, ctx: &egui::Context) {
+        let Some(clamscan) = self.binaries.clamscan.clone() else { return };
+        if let Err(msg) = self.model.begin_scan() {
+            log::warn!("{msg}");
+            return;
+        }
+        let (tx, rx) = channel();
+        self.scan_rx = Some(rx);
+        let ctx = ctx.clone();
+        self.scan_handle = Some(start_scan(
+            clamscan,
+            self.paths.db_dir.clone(),
+            self.model.targets.clone(),
+            tx,
+            move || ctx.request_repaint(),
+        ));
+    }
+
+    fn abort_scan(&self) {
+        if let Some(handle) = &self.scan_handle {
+            handle.abort();
+        }
+    }
+
+    fn scan_missing_reason(&self) -> Option<&'static str> {
+        if self.binaries.clamscan.is_none() {
+            Some("clamscan nicht gefunden (siehe Einstellungen)")
+        } else if !self.model.signatures_available() {
+            Some("Erst Signaturen laden")
+        } else if self.model.targets.is_empty() {
+            Some("Ziel auswählen")
+        } else {
+            None
+        }
+    }
+
+    fn collect_dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped: Vec<PathBuf> = ctx.input(|i| {
+            i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect()
+        });
+        if !self.model.is_idle() {
+            return;
+        }
+        for path in dropped {
+            self.model.add_target(path);
+        }
+    }
+
+    fn handle_scan_action(&mut self, action: ScanAction, ctx: &egui::Context) {
+        match action {
+            ScanAction::None => {}
+            ScanAction::PickFiles => {
+                if let Some(files) = rfd::FileDialog::new().set_title("Dateien wählen").pick_files() {
+                    for f in files {
+                        self.model.add_target(f);
+                    }
+                }
+            }
+            ScanAction::PickFolder => {
+                if let Some(dir) = rfd::FileDialog::new().set_title("Ordner wählen").pick_folder() {
+                    self.model.add_target(dir);
+                }
+            }
+            ScanAction::Start => self.start_scan(ctx),
+            ScanAction::Abort => self.abort_scan(),
+        }
+    }
 }
 
 impl eframe::App for ClamApp {
@@ -138,10 +208,16 @@ impl eframe::App for ClamApp {
             }
             ui.add_space(4.0);
         });
+        self.collect_dropped_files(&ctx);
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.label("Scan-Bereich folgt.");
+            let can_scan = self.model.can_start_scan(self.binaries.clamscan.is_some());
+            let reason = self.scan_missing_reason();
+            let action = scan_panel::show(ui, &mut self.model, can_scan, reason);
+            self.handle_scan_action(action, &ctx);
+            ui.separator();
+            ui.label("Befunde folgen.");
         });
-        // `show_settings`, `confirm_delete` and `scan_handle` are wired in later tasks.
-        let _ = (&self.show_settings, &self.confirm_delete, &self.scan_handle);
+        // `show_settings` and `confirm_delete` are wired in later tasks.
+        let _ = (&self.show_settings, &self.confirm_delete);
     }
 }

@@ -95,7 +95,7 @@ DB directory: `directories::ProjectDirs::from("", "", "clamavui").data_dir()/db`
 
 - Linux: `~/.local/share/clamavui/db`
 - macOS: `~/Library/Application Support/clamavui/db`
-- Windows: `%APPDATA%\clamavui\db`
+- Windows: `%APPDATA%\clamavui\data\db` (the `directories` crate appends `data` and `config` segments on Windows, so the config dir is `%APPDATA%\clamavui\config`)
 
 The directory is created at startup if it is missing.
 

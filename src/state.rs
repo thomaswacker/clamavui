@@ -447,7 +447,7 @@ mod tests {
         ));
         assert!(m.apply_update_event(UpdateEvent::Finished { exit_code: Some(2) }));
         assert_eq!(m.update_error.as_deref(), Some("freshclam beendet mit Exit-Code 2"));
-        let hint = m.update_hint.expect("hint for AppArmor denial");
+        let hint = m.update_hint.clone().expect("hint for AppArmor denial");
         assert!(hint.contains("AppArmor"));
         assert!(hint.contains("apparmor_parser -r /etc/apparmor.d/usr.bin.freshclam"));
         assert!(hint.contains("owner @{HOME}/.local/share/clamavui/db/** rwk,"));

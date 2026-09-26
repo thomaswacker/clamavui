@@ -203,6 +203,10 @@ impl Model {
 
     /// Returns true when the update run is over (success or failure).
     pub fn apply_update_event(&mut self, event: UpdateEvent) -> bool {
+        if !matches!(self.phase, Phase::Updating) {
+            log::warn!("update event {event:?} received while not updating");
+            return false;
+        }
         match event {
             UpdateEvent::Started => false,
             UpdateEvent::Line(line) => {
@@ -403,6 +407,19 @@ mod tests {
         assert!(m.apply_update_event(UpdateEvent::SpawnFailed("boom".into())));
         assert_eq!(m.update_error.as_deref(), Some("freshclam konnte nicht gestartet werden: boom"));
         assert!(m.is_idle());
+    }
+
+    #[test]
+    fn update_events_outside_updating_are_ignored() {
+        let mut m = with_signatures();
+        assert!(!m.apply_update_event(UpdateEvent::Line("stray".into())));
+        assert!(m.update_log.is_empty());
+
+        m.add_target(PathBuf::from("/a"));
+        m.begin_scan().unwrap();
+        assert!(!m.apply_update_event(UpdateEvent::Finished { exit_code: Some(0) }));
+        assert!(matches!(m.phase, Phase::Scanning(_)), "a stray update event must not end a running scan");
+        assert!(m.update_error.is_none());
     }
 
     #[test]

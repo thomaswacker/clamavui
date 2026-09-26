@@ -1,7 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use clamavui::app::ClamApp;
+use clamavui::config::AppPaths;
+
 fn main() -> eframe::Result {
     env_logger::init();
+    let paths = AppPaths::detect().unwrap_or_else(|| {
+        log::error!("no home directory found, using current directory");
+        AppPaths {
+            config_dir: std::path::PathBuf::from("clamavui-config"),
+            db_dir: std::path::PathBuf::from("clamavui-db"),
+        }
+    });
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("ClamAV UI")
@@ -13,16 +23,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "ClamAV UI",
         options,
-        Box::new(|_cc| Ok(Box::new(Placeholder))),
+        Box::new(move |cc| Ok(Box::new(ClamApp::new(cc, paths)))),
     )
-}
-
-struct Placeholder;
-
-impl eframe::App for Placeholder {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ui, |ui| {
-            ui.heading("ClamAV UI");
-        });
-    }
 }

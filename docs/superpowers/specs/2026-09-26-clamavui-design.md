@@ -57,7 +57,7 @@ src/
 
 Lang laufende Aktionen (Scan, Update, Signaturstand lesen) laufen in einem `std::thread`. Der Worker sendet Ereignisse über `std::sync::mpsc::Sender<Event>` an die UI und ruft nach jedem Ereignis `egui::Context::request_repaint()` auf. Die UI leert den Kanal zu Beginn jedes Frames. Keine async-Runtime.
 
-Abbruch eines Scans: Die UI hält ein `Arc<Mutex<Option<Child>>>` bzw. die Prozess-ID; „Abbrechen" ruft `Child::kill()`. Der Worker meldet danach `ScanEvent::Aborted`.
+Abbruch eines Scans: Worker und UI teilen sich ein `Arc<Mutex<Option<Child>>>`; „Abbrechen" sperrt den Mutex und ruft `Child::kill()`. Der Worker meldet danach `ScanEvent::Aborted`.
 
 ### Zustandsautomat (in `app.rs`, ohne egui-Abhängigkeit modelliert)
 
@@ -209,7 +209,7 @@ Logging über `log` + `env_logger` auf stderr, Level per `RUST_LOG`.
 
 ## 9. Build und Packaging
 
-- Rust 2021, `cargo build --release` ohne Zusatzschritte. Linux-Systemabhängigkeiten (libxkbcommon, libgtk-3 für rfd, libssl nicht nötig) werden in der README genannt.
+- Rust 2021, `cargo build --release` ohne Zusatzschritte. Linux-Systemabhängigkeiten (libxkbcommon, libgtk-3 für rfd) werden in der README genannt.
 - Windows: `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`.
 - Lizenz MIT. ClamAV wird nur als externer Prozess aufgerufen.
 - Kein Installer, keine CI in dieser Version.

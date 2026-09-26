@@ -15,7 +15,7 @@ pub enum ActionError {
     InvalidName,
     #[error("Papierkorb nicht verfügbar: {0}")]
     Trash(String),
-    #[error("{0}")]
+    #[error("Dateisystemfehler: {0}")]
     Io(String),
 }
 
@@ -45,7 +45,11 @@ pub fn suggested_rename(path: &Path) -> String {
     format!("{name}.infected")
 }
 
-/// Rename within the same directory. Never overwrites.
+/// Rename within the same directory, refusing an existing target.
+///
+/// The existence check and the rename are two separate syscalls, so a file created at the
+/// target name in between would be replaced. That window is accepted for an interactive
+/// desktop tool; an atomic no-replace rename is not portable across the filesystems we target.
 pub fn rename_file(path: &Path, new_name: &str) -> Result<PathBuf, ActionError> {
     let new_name = new_name.trim();
     if new_name.is_empty() || new_name == "." || new_name == ".." || new_name.contains(['/', '\\']) {
@@ -137,5 +141,9 @@ mod tests {
     fn errors_have_german_messages() {
         assert_eq!(ActionError::NotFound.to_string(), "Datei nicht gefunden");
         assert_eq!(ActionError::PermissionDenied.to_string(), "Keine Berechtigung");
+        assert_eq!(ActionError::TargetExists(PathBuf::from("/x/y")).to_string(), "Ziel existiert bereits: /x/y");
+        assert_eq!(ActionError::InvalidName.to_string(), "Ungültiger Dateiname");
+        assert_eq!(ActionError::Trash("boom".into()).to_string(), "Papierkorb nicht verfügbar: boom");
+        assert_eq!(ActionError::Io("disk full".into()).to_string(), "Dateisystemfehler: disk full");
     }
 }

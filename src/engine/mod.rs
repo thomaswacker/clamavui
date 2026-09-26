@@ -1,4 +1,5 @@
 pub mod locate;
+pub mod scan;
 pub mod signatures;
 
 use std::path::Path;

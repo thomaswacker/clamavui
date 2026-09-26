@@ -1,6 +1,7 @@
 pub mod locate;
 pub mod scan;
 pub mod signatures;
+pub mod update;
 
 use std::path::Path;
 use std::process::Command;

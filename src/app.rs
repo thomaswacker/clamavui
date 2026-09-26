@@ -195,6 +195,10 @@ impl ClamApp {
     }
 
     fn handle_finding_action(&mut self, action: FindingAction, ctx: &egui::Context) {
+        if !self.model.is_idle() {
+            log::debug!("finding action {action:?} ignored while busy");
+            return;
+        }
         match action {
             FindingAction::Delete(id) => self.confirm_delete = Some(id),
             FindingAction::Trash(id) => {

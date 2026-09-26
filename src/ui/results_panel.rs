@@ -83,23 +83,26 @@ pub fn show(ui: &mut egui::Ui, model: &mut Model, actions_enabled: bool) -> Vec<
                         row.col(|ui| {
                             ui.vertical(|ui| {
                                 if let Some(buf) = &mut finding.rename {
-                                    let resp = ui.add(
-                                        egui::TextEdit::singleline(buf)
-                                            .id(rename_field_id(id))
-                                            .desired_width(f32::INFINITY),
-                                    );
-                                    // Single-line TextEdit surrenders focus on Enter/Escape.
-                                    if resp.lost_focus() && enter {
-                                        actions.push(FindingAction::RenameCommit(id));
-                                    } else if resp.lost_focus() && escape {
-                                        actions.push(FindingAction::RenameCancel(id));
-                                    }
+                                    ui.add_enabled_ui(actions_enabled, |ui| {
+                                        let resp = ui.add(
+                                            egui::TextEdit::singleline(buf)
+                                                .id(rename_field_id(id))
+                                                .desired_width(f32::INFINITY),
+                                        );
+                                        // Single-line TextEdit surrenders focus on Enter/Escape.
+                                        if actions_enabled && resp.lost_focus() && enter {
+                                            actions.push(FindingAction::RenameCommit(id));
+                                        } else if actions_enabled && resp.lost_focus() && escape {
+                                            actions.push(FindingAction::RenameCancel(id));
+                                        }
+                                    });
                                 } else {
                                     ui.monospace(finding.path.display().to_string())
                                         .on_hover_text(finding.path.display().to_string());
                                 }
                                 if let Some(err) = &finding.error {
-                                    ui.colored_label(Color32::LIGHT_RED, err);
+                                    ui.add(egui::Label::new(RichText::new(err).color(Color32::LIGHT_RED)).truncate())
+                                        .on_hover_text(err);
                                 }
                             });
                         });

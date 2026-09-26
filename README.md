@@ -16,6 +16,39 @@ Every push to `main` builds and tests on Linux, Windows and macOS (Apple Silicon
 via GitHub Actions; the binaries are attached to the workflow run as artifacts. Pushing a tag
 `v*` additionally publishes a GitHub release with all four archives.
 
+## Installation
+
+Prebuilt binaries are attached to every [release](https://github.com/thomaswacker/clamavui/releases).
+They are not code-signed, so the operating system warns once on first start.
+
+### macOS
+
+1. Install ClamAV with Homebrew: `brew install clamav`. The app finds the tools in
+   `/opt/homebrew/bin` (Apple Silicon) or `/usr/local/bin` (Intel) automatically.
+2. Download `clamavui-macos-aarch64.tar.gz` (Apple Silicon) or `clamavui-macos-x86_64.tar.gz` (Intel)
+   and unpack it: `tar -xzf clamavui-macos-*.tar.gz`.
+3. Remove the quarantine flag once, then start the app:
+
+       xattr -d com.apple.quarantine clamavui
+       ./clamavui
+
+   Alternatively right-click `clamavui` in Finder and choose "Open" to bypass Gatekeeper.
+4. Optional: move `clamavui` to `/usr/local/bin` or `~/bin` to have it in your PATH.
+
+### Windows
+
+1. Install ClamAV from the official installer at <https://www.clamav.net/downloads>
+   (default location `C:\Program Files\ClamAV`, which the app checks automatically).
+   If you install elsewhere, enter the paths under "Einstellungen".
+2. Download `clamavui-windows-x86_64.zip`, unpack it, and run `clamavui.exe`.
+3. SmartScreen shows "Windows protected your PC" on first start: click "More info", then "Run anyway".
+
+### Linux
+
+1. Install ClamAV: `sudo apt install clamav clamav-freshclam` (Debian/Ubuntu) or the equivalent package.
+2. Download `clamavui-linux-x86_64.tar.gz`, unpack it, and run `./clamavui`. On Debian/Ubuntu also
+   see the AppArmor note below before the first signature update.
+
 ## Build and run
 
     cargo run --release

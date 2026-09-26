@@ -23,6 +23,7 @@ pub struct ClamApp {
     update_rx: Option<Receiver<UpdateEvent>>,
     status_rx: Option<Receiver<Result<SignatureStatus, String>>>,
     show_settings: bool,
+    settings_error: Option<String>,
     confirm_delete: Option<u64>,
 }
 
@@ -44,6 +45,7 @@ impl ClamApp {
             update_rx: None,
             status_rx: None,
             show_settings: false,
+            settings_error: None,
             confirm_delete: None,
         };
         if app.settings.check_signatures_on_start {
@@ -277,11 +279,16 @@ impl ClamApp {
         }
     }
 
-    fn apply_settings_change(&mut self) {
+    fn apply_settings_change(&mut self, ctx: &egui::Context) {
         self.binaries = locate_all(&self.settings);
-        if let Err(e) = self.settings.save(&self.paths.settings_file()) {
-            log::warn!("could not save settings: {e}");
+        match self.settings.save(&self.paths.settings_file()) {
+            Ok(()) => self.settings_error = None,
+            Err(e) => {
+                log::warn!("could not save settings: {e}");
+                self.settings_error = Some(format!("Einstellungen konnten nicht gespeichert werden: {e}"));
+            }
         }
+        self.refresh_status(ctx);
     }
 
     fn show_missing_banner(&mut self, ui: &mut egui::Ui) {
@@ -342,10 +349,18 @@ impl eframe::App for ClamApp {
         });
         self.show_delete_confirmation(&ctx);
         let mut open = self.show_settings;
-        let changed = settings::show(&ctx, &mut open, &mut self.settings, &self.binaries, &self.paths);
+        let changed = settings::show(
+            &ctx,
+            &mut open,
+            &mut self.settings,
+            &self.binaries,
+            &self.paths,
+            self.settings_error.as_deref(),
+        );
+        let closed_now = self.show_settings && !open;
         self.show_settings = open;
-        if changed {
-            self.apply_settings_change();
+        if changed || closed_now {
+            self.apply_settings_change(&ctx);
         }
     }
 }

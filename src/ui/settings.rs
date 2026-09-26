@@ -3,14 +3,14 @@ use crate::engine::locate::{ClamBinaries, Tool};
 use egui::{Color32, RichText};
 
 fn path_row(ui: &mut egui::Ui, tool: Tool, value: &mut String, resolved: Option<&std::path::Path>) -> bool {
-    let mut changed = false;
     ui.label(tool.name());
     let resp = ui.add(
         egui::TextEdit::singleline(value)
             .hint_text("leer = automatisch suchen")
             .desired_width(280.0),
     );
-    changed |= resp.changed();
+    // Re-locate and save when editing ends, not on every keystroke.
+    let committed = resp.lost_focus();
     match resolved {
         Some(p) => {
             ui.label(RichText::new(p.display().to_string()).small().weak());
@@ -20,16 +20,18 @@ fn path_row(ui: &mut egui::Ui, tool: Tool, value: &mut String, resolved: Option<
         }
     }
     ui.end_row();
-    changed
+    committed
 }
 
-/// Settings window. Returns true when a value changed (caller re-locates binaries and saves).
+/// Settings window. Returns true when editing of a path field ended or the checkbox toggled
+/// (caller re-locates binaries and saves).
 pub fn show(
     ctx: &egui::Context,
     open: &mut bool,
     settings: &mut Settings,
     binaries: &ClamBinaries,
     paths: &AppPaths,
+    save_error: Option<&str>,
 ) -> bool {
     let mut changed = false;
     egui::Window::new("Einstellungen")
@@ -57,6 +59,10 @@ pub fn show(
             changed |= ui
                 .checkbox(&mut settings.check_signatures_on_start, "Beim Start Signaturstand prüfen")
                 .changed();
+            if let Some(err) = save_error {
+                ui.separator();
+                ui.colored_label(Color32::LIGHT_RED, err);
+            }
         });
     changed
 }

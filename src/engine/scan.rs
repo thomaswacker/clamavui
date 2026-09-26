@@ -266,7 +266,12 @@ mod tests {
         let events = collect(&rx);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], ScanEvent::SpawnFailed(_)));
-        assert!(notified.load(Ordering::SeqCst));
+        // The worker notifies right after sending; the receiver can win that race, so wait briefly.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !notified.load(Ordering::SeqCst) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(notified.load(Ordering::SeqCst), "notify must be called after the terminal event");
     }
 
     #[cfg(unix)]

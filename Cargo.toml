@@ -2,8 +2,9 @@
 name = "clamavui"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.95"
 license = "MIT"
-description = "Grafische Oberfläche für den Virenscanner ClamAV"
+description = "Graphical front end for the ClamAV virus scanner"
 
 [dependencies]
 eframe = "0.36"

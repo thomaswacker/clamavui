@@ -124,7 +124,7 @@ impl ClamApp {
     }
 
     fn first_update_hint(&self) -> bool {
-        !self.model.signatures_available()
+        self.model.signature_status.as_ref().is_some_and(|s| s.is_missing())
     }
 
     fn start_scan(&mut self, ctx: &egui::Context) {
@@ -316,6 +316,11 @@ impl eframe::App for ClamApp {
         self.drain_events(ctx);
     }
 
+    /// Kill a running clamscan when the window closes, so it doesn't keep running headless.
+    fn on_exit(&mut self) {
+        self.abort_scan();
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let was_open = self.show_settings;
         let ctx = ui.ctx().clone();
@@ -359,7 +364,7 @@ impl eframe::App for ClamApp {
             &mut self.settings,
             &self.binaries,
             &self.paths,
-            self.settings_error.as_deref(),
+            &mut self.settings_error,
         );
         let closed_now = was_open && !open;
         self.show_settings = open;

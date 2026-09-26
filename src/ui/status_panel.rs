@@ -91,6 +91,12 @@ pub fn show(
                         }
                     });
             });
+        // Keep the last line visible even while the header itself is collapsed.
+        if matches!(model.phase, Phase::Updating) {
+            if let Some(last_line) = model.update_log.last() {
+                ui.monospace(last_line);
+            }
+        }
     }
     action
 }

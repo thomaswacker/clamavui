@@ -142,6 +142,7 @@ pub fn show(ui: &mut egui::Ui, model: &mut Model, actions_enabled: bool) -> Vec<
     if !model.issues.is_empty() {
         let open = matches!(model.summary.as_ref().map(|s| &s.outcome), Some(ScanOutcome::Incomplete));
         egui::CollapsingHeader::new(format!("Fehler/Warnungen ({})", model.issues.len()))
+            .id_salt("issues_header")
             .default_open(open)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()

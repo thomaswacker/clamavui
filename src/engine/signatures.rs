@@ -146,7 +146,9 @@ pub fn read_status(sigtool: &Path, db_dir: &Path) -> Result<SignatureStatus, Sig
         }
         let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
         text.push_str(&String::from_utf8_lossy(&output.stderr));
-        files.push(parse_sigtool_info(&text)?);
+        let info = parse_sigtool_info(&text)
+            .inspect_err(|_| log::warn!("unparsable sigtool output for {}:\n{text}", file.display()))?;
+        files.push(info);
     }
     Ok(SignatureStatus::from_files(files))
 }

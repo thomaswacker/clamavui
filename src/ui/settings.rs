@@ -24,14 +24,15 @@ fn path_row(ui: &mut egui::Ui, tool: Tool, value: &mut String, resolved: Option<
 }
 
 /// Settings window. Returns true when editing of a path field ended or the checkbox toggled
-/// (caller re-locates binaries and saves).
+/// (caller re-locates binaries and saves). `settings_error` is rendered at the bottom when set;
+/// a failure to open the DB directory is written into it directly.
 pub fn show(
     ctx: &egui::Context,
     open: &mut bool,
     settings: &mut Settings,
     binaries: &ClamBinaries,
     paths: &AppPaths,
-    save_error: Option<&str>,
+    settings_error: &mut Option<String>,
 ) -> bool {
     let mut changed = false;
     egui::Window::new("Einstellungen")
@@ -52,6 +53,7 @@ pub fn show(
                 if ui.button("Ordner öffnen").clicked() {
                     if let Err(e) = opener::open(&paths.db_dir) {
                         log::warn!("could not open {}: {e}", paths.db_dir.display());
+                        *settings_error = Some(format!("Ordner konnte nicht geöffnet werden: {e}"));
                     }
                 }
             });
@@ -59,9 +61,9 @@ pub fn show(
             changed |= ui
                 .checkbox(&mut settings.check_signatures_on_start, "Beim Start Signaturstand prüfen")
                 .changed();
-            if let Some(err) = save_error {
+            if let Some(err) = settings_error {
                 ui.separator();
-                ui.colored_label(Color32::LIGHT_RED, err);
+                ui.colored_label(Color32::LIGHT_RED, err.as_str());
             }
         });
     changed

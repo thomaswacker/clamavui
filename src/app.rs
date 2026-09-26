@@ -1,9 +1,11 @@
+use crate::actions::{delete_file, rename_file, suggested_rename, trash_file, ActionError};
 use crate::config::{AppPaths, Settings};
 use crate::engine::locate::{locate_all, ClamBinaries};
 use crate::engine::scan::{start_scan, ScanEvent, ScanHandle};
 use crate::engine::signatures::{read_status, SignatureStatus};
 use crate::engine::update::{ensure_freshclam_conf, start_update, UpdateEvent};
 use crate::state::Model;
+use crate::ui::results_panel::{self, rename_field_id, FindingAction};
 use crate::ui::scan_panel::{self, ScanAction};
 use crate::ui::status_panel::{self, StatusAction};
 use chrono::Utc;
@@ -191,6 +193,84 @@ impl ClamApp {
             ScanAction::Abort => self.abort_scan(),
         }
     }
+
+    fn handle_finding_action(&mut self, action: FindingAction, ctx: &egui::Context) {
+        match action {
+            FindingAction::Delete(id) => self.confirm_delete = Some(id),
+            FindingAction::Trash(id) => {
+                let Some(path) = self.model.finding_mut(id).map(|f| f.path.clone()) else { return };
+                match trash_file(&path) {
+                    Ok(()) => self.model.remove_finding(id),
+                    Err(ActionError::Trash(msg)) => self.model.set_finding_error(
+                        id,
+                        format!("Papierkorb nicht verfügbar ({msg}). Stattdessen löschen?"),
+                    ),
+                    Err(e) => self.model.set_finding_error(id, e.to_string()),
+                }
+            }
+            FindingAction::RenameStart(id) => {
+                if let Some(f) = self.model.finding_mut(id) {
+                    f.rename = Some(suggested_rename(&f.path));
+                    f.error = None;
+                    ctx.memory_mut(|m| m.request_focus(rename_field_id(id)));
+                }
+            }
+            FindingAction::RenameCancel(id) => {
+                if let Some(f) = self.model.finding_mut(id) {
+                    f.rename = None;
+                }
+            }
+            FindingAction::RenameCommit(id) => {
+                let Some((path, new_name)) = self
+                    .model
+                    .finding_mut(id)
+                    .and_then(|f| f.rename.clone().map(|n| (f.path.clone(), n)))
+                else {
+                    return;
+                };
+                match rename_file(&path, &new_name) {
+                    Ok(_) => self.model.remove_finding(id),
+                    Err(e) => self.model.set_finding_error(id, e.to_string()),
+                }
+            }
+            FindingAction::Ignore(id) => self.model.remove_finding(id),
+        }
+    }
+
+    fn execute_delete(&mut self, id: u64) {
+        let Some(path) = self.model.finding_mut(id).map(|f| f.path.clone()) else { return };
+        match delete_file(&path) {
+            Ok(()) => self.model.remove_finding(id),
+            Err(e) => self.model.set_finding_error(id, e.to_string()),
+        }
+    }
+
+    fn show_delete_confirmation(&mut self, ctx: &egui::Context) {
+        let Some(id) = self.confirm_delete else { return };
+        let Some(path) = self.model.finding_mut(id).map(|f| f.path.clone()) else {
+            self.confirm_delete = None;
+            return;
+        };
+        let modal = egui::Modal::new(egui::Id::new("confirm_delete")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.heading("Datei endgültig löschen?");
+            ui.monospace(path.display().to_string());
+            ui.label("Diese Aktion kann nicht rückgängig gemacht werden.");
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Löschen").clicked() {
+                    self.execute_delete(id);
+                    self.confirm_delete = None;
+                }
+                if ui.button("Abbrechen").clicked() {
+                    self.confirm_delete = None;
+                }
+            });
+        });
+        if modal.should_close() {
+            self.confirm_delete = None;
+        }
+    }
 }
 
 impl eframe::App for ClamApp {
@@ -217,9 +297,14 @@ impl eframe::App for ClamApp {
             let action = scan_panel::show(ui, &mut self.model, can_scan, reason);
             self.handle_scan_action(action, &ctx);
             ui.separator();
-            ui.label("Befunde folgen.");
+            let actions_enabled = self.model.is_idle();
+            let finding_actions = results_panel::show(ui, &mut self.model, actions_enabled);
+            for action in finding_actions {
+                self.handle_finding_action(action, &ctx);
+            }
         });
-        // `show_settings` and `confirm_delete` are wired in later tasks.
-        let _ = (&self.show_settings, &self.confirm_delete);
+        self.show_delete_confirmation(&ctx);
+        // `show_settings` is wired in a later task.
+        let _ = &self.show_settings;
     }
 }

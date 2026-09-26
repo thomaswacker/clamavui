@@ -1,3 +1,4 @@
+pub mod results_panel;
 pub mod scan_panel;
 pub mod status_panel;
 

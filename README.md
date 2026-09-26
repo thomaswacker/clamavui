@@ -22,9 +22,14 @@ The UI starts at 1.4× zoom, which suits high-density displays. Change it under
 On X11, Windows and macOS the window icon (`assets/icon.png`) is set at runtime. Wayland
 desktops take the icon from a `.desktop` file instead:
 
+    install -Dm755 target/release/clamavui ~/.local/bin/clamavui
     install -Dm644 assets/clamavui.desktop ~/.local/share/applications/clamavui.desktop
     install -Dm644 assets/icon.png ~/.local/share/icons/hicolor/256x256/apps/clamavui.png
-    install -Dm755 target/release/clamavui ~/.local/bin/clamavui
+    install -Dm644 assets/icon.svg ~/.local/share/icons/hicolor/scalable/apps/clamavui.svg
+    update-desktop-database ~/.local/share/applications
+    kbuildsycoca6   # KDE Plasma only; GNOME picks the file up on its own
+
+Then restart the app; the compositor matches the window's app id `clamavui` to the desktop file.
 
 ## Signatures
 

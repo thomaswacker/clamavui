@@ -1,4 +1,5 @@
 pub mod locate;
+pub mod signatures;
 
 use std::path::Path;
 use std::process::Command;

@@ -25,6 +25,20 @@ pub struct ClamApp {
     show_settings: bool,
     settings_error: Option<String>,
     confirm_delete: Option<u64>,
+    /// Shield logo shown in the empty results area until the first scan.
+    logo: Option<egui::TextureHandle>,
+}
+
+/// Decode the embedded window icon into a texture for the idle logo.
+fn load_logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
+        .inspect_err(|e| log::warn!("logo could not be decoded: {e}"))
+        .ok()?;
+    let image = egui::ColorImage::from_rgba_unmultiplied(
+        [icon.width as usize, icon.height as usize],
+        &icon.rgba,
+    );
+    Some(ctx.load_texture("app-logo", image, egui::TextureOptions::LINEAR))
 }
 
 impl ClamApp {
@@ -48,6 +62,7 @@ impl ClamApp {
             show_settings: false,
             settings_error: None,
             confirm_delete: None,
+            logo: load_logo(&cc.egui_ctx),
         };
         if app.settings.check_signatures_on_start {
             app.refresh_status(&cc.egui_ctx);
@@ -365,10 +380,22 @@ impl eframe::App for ClamApp {
             let action = scan_panel::show(ui, &mut self.model, can_scan, reason);
             self.handle_scan_action(action, &ctx);
             ui.separator();
-            let actions_enabled = self.model.is_idle();
-            let finding_actions = results_panel::show(ui, &mut self.model, actions_enabled);
-            for action in finding_actions {
-                self.handle_finding_action(action, &ctx);
+            if self.model.shows_logo() {
+                if let Some(logo) = &self.logo {
+                    ui.add_space(24.0);
+                    ui.vertical_centered(|ui| {
+                        let texture = egui::load::SizedTexture::new(logo.id(), egui::vec2(160.0, 160.0));
+                        ui.add(egui::Image::from_texture(texture));
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new("ClamAV UI").heading().weak());
+                    });
+                }
+            } else {
+                let actions_enabled = self.model.is_idle();
+                let finding_actions = results_panel::show(ui, &mut self.model, actions_enabled);
+                for action in finding_actions {
+                    self.handle_finding_action(action, &ctx);
+                }
             }
         });
         self.show_delete_confirmation(&ctx);

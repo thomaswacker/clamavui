@@ -115,6 +115,11 @@ impl Model {
         matches!(self.phase, Phase::Idle)
     }
 
+    /// The idle logo is shown until the first scan starts; results take its place afterwards.
+    pub fn shows_logo(&self) -> bool {
+        self.summary.is_none() && !matches!(self.phase, Phase::Scanning(_))
+    }
+
     pub fn signatures_available(&self) -> bool {
         self.signature_status.as_ref().is_some_and(|s| !s.is_missing())
     }
@@ -436,6 +441,20 @@ mod tests {
         assert!(m.apply_update_event(UpdateEvent::SpawnFailed("boom".into())));
         assert_eq!(m.update_error.as_deref(), Some("freshclam konnte nicht gestartet werden: boom"));
         assert!(m.is_idle());
+    }
+
+    #[test]
+    fn logo_shown_until_first_scan_starts() {
+        let mut m = with_signatures();
+        assert!(m.shows_logo(), "fresh model shows the logo");
+        m.begin_update().unwrap();
+        assert!(m.shows_logo(), "an update alone keeps the logo");
+        m.apply_update_event(UpdateEvent::Finished { exit_code: Some(0) });
+        m.add_target(PathBuf::from("/a"));
+        m.begin_scan().unwrap();
+        assert!(!m.shows_logo(), "hidden as soon as a scan starts");
+        m.apply_scan_event(ScanEvent::Finished { exit_code: Some(0), duration: Duration::ZERO });
+        assert!(!m.shows_logo(), "results replace the logo after the scan");
     }
 
     #[test]

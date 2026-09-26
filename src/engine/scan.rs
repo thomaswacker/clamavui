@@ -57,6 +57,7 @@ pub struct ScanHandle {
 }
 
 impl ScanHandle {
+    /// Abort the scan. Safe to call at any time, including before `Started` is sent.
     pub fn abort(&self) {
         self.aborted.store(true, Ordering::SeqCst);
         if let Ok(mut guard) = self.child.lock() {
@@ -110,13 +111,27 @@ pub fn start_scan(
                 }
             });
         }
-        *worker.child.lock().expect("scan child mutex") = Some(child);
+        {
+            let mut guard = worker.child.lock().expect("scan child mutex");
+            *guard = Some(child);
+            if worker.aborted.load(Ordering::SeqCst) {
+                if let Some(child) = guard.as_mut() {
+                    if let Err(e) = child.kill() {
+                        log::warn!("could not kill clamscan after early abort: {e}");
+                    }
+                }
+            }
+        }
         send(ScanEvent::Started);
 
-        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            if let Some(parsed) = parse_scan_line(&line) {
-                send(ScanEvent::Line(parsed));
+        if !worker.aborted.load(Ordering::SeqCst) {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                if let Some(parsed) = parse_scan_line(&line) {
+                    send(ScanEvent::Line(parsed));
+                }
             }
+        } else {
+            drop(stdout);
         }
 
         let child = worker.child.lock().expect("scan child mutex").take();
@@ -214,5 +229,86 @@ mod tests {
     #[test]
     fn abort_without_child_does_not_panic() {
         ScanHandle::default().abort();
+    }
+
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+
+    fn collect(rx: &std::sync::mpsc::Receiver<ScanEvent>) -> Vec<ScanEvent> {
+        let mut events = Vec::new();
+        loop {
+            let ev = rx.recv_timeout(Duration::from_secs(10)).expect("event within timeout");
+            let done = matches!(ev, ScanEvent::Finished { .. } | ScanEvent::Aborted | ScanEvent::SpawnFailed(_));
+            events.push(ev);
+            if done {
+                return events;
+            }
+        }
+    }
+
+    #[test]
+    fn spawn_failure_reports_spawn_failed_and_notifies() {
+        let (tx, rx) = channel();
+        let notified = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&notified);
+        let _h = start_scan(PathBuf::from("/definitely/not/a/binary"), PathBuf::from("/db"), vec![PathBuf::from("/x")], tx, move || flag.store(true, Ordering::SeqCst));
+        let events = collect(&rx);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], ScanEvent::SpawnFailed(_)));
+        assert!(notified.load(Ordering::SeqCst));
+    }
+
+    #[cfg(unix)]
+    fn fake_clamscan(dir: &std::path::Path, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join("fake-clamscan");
+        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn worker_streams_lines_and_finishes_with_exit_code() {
+        use std::path::Path;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = fake_clamscan(dir.path(), "echo '/a/ok.txt: OK'; echo '/a/bad.txt: Eicar-Test-Signature FOUND'; exit 1");
+        let (tx, rx) = channel();
+        let _h = start_scan(bin, PathBuf::from("/db"), vec![PathBuf::from("/a")], tx, || {});
+        let events = collect(&rx);
+        assert!(matches!(events[0], ScanEvent::Started));
+        assert!(matches!(&events[1], ScanEvent::Line(ScanLine::Clean(p)) if p == Path::new("/a/ok.txt")));
+        assert!(matches!(&events[2], ScanEvent::Line(ScanLine::Found { signature, .. }) if signature == "Eicar-Test-Signature"));
+        assert!(matches!(events[3], ScanEvent::Finished { exit_code: Some(1), .. }));
+        assert_eq!(events.len(), 4);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn abort_kills_running_scan_and_reports_aborted() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = fake_clamscan(dir.path(), "sleep 30");
+        let (tx, rx) = channel();
+        let handle = start_scan(bin, PathBuf::from("/db"), vec![PathBuf::from("/a")], tx, || {});
+        assert!(matches!(rx.recv_timeout(Duration::from_secs(10)).unwrap(), ScanEvent::Started));
+        let t = std::time::Instant::now();
+        handle.abort();
+        let events = collect(&rx);
+        assert!(matches!(events.last(), Some(ScanEvent::Aborted)));
+        assert!(t.elapsed() < Duration::from_secs(5), "abort must not wait for the process to finish naturally");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn abort_before_started_still_kills_process() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = fake_clamscan(dir.path(), "sleep 30");
+        let (tx, rx) = channel();
+        let handle = start_scan(bin, PathBuf::from("/db"), vec![PathBuf::from("/a")], tx, || {});
+        let t = std::time::Instant::now();
+        handle.abort(); // may run before the worker stored the child
+        let events = collect(&rx);
+        assert!(matches!(events.last(), Some(ScanEvent::Aborted)));
+        assert!(t.elapsed() < Duration::from_secs(5));
     }
 }

@@ -51,6 +51,18 @@ Log output: `RUST_LOG=debug cargo run`.
     cargo test                                            # unit tests, no ClamAV needed
     cargo test --test clamscan_integration -- --ignored   # needs clamscan and a signature DB
 
+## Debian/Ubuntu: AppArmor
+
+These distributions ship an AppArmor profile for `freshclam` that only permits
+`/etc/clamav` and `/var/lib/clamav`, so the first update fails with
+"Can't open/parse the config file". Allow the app's per-user directories once:
+
+    sudo cp assets/apparmor/usr.bin.freshclam /etc/apparmor.d/local/usr.bin.freshclam
+    sudo apparmor_parser -r /etc/apparmor.d/usr.bin.freshclam
+
+`clamscan` has no profile and is not affected. The app shows the same hint when it
+detects this error in the update log.
+
 ## License
 
 MIT. ClamAV itself is only invoked as an external process.

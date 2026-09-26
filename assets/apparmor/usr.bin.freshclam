@@ -1,0 +1,8 @@
+# Local AppArmor additions for ClamAV UI (Debian/Ubuntu ship a profile for
+# /usr/bin/freshclam that only allows /etc/clamav and /var/lib/clamav).
+# Install with:
+#   sudo cp assets/apparmor/usr.bin.freshclam /etc/apparmor.d/local/usr.bin.freshclam
+#   sudo apparmor_parser -r /etc/apparmor.d/usr.bin.freshclam
+owner @{HOME}/.config/clamavui/freshclam.conf r,
+owner @{HOME}/.local/share/clamavui/db/ rw,
+owner @{HOME}/.local/share/clamavui/db/** rwk,

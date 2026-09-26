@@ -6,6 +6,27 @@ use std::time::{Duration, Instant};
 
 const BUSY: &str = "Es läuft bereits ein Scan oder Update.";
 
+/// freshclam's message when it may not read the config file. On Debian/Ubuntu the shipped
+/// AppArmor profile confines freshclam to /etc/clamav and /var/lib/clamav, which blocks the
+/// app's per-user directories even though the Unix permissions are fine.
+const CONFIG_UNREADABLE: &str = "Can't open/parse the config file";
+
+const APPARMOR_HINT: &str = "Vermutlich blockiert das AppArmor-Profil von freshclam (Debian/Ubuntu) \
+den Zugriff auf das App-Verzeichnis. Einmalig als root die Datei \
+/etc/apparmor.d/local/usr.bin.freshclam mit diesem Inhalt anlegen:\n\
+  owner @{HOME}/.config/clamavui/freshclam.conf r,\n\
+  owner @{HOME}/.local/share/clamavui/db/ rw,\n\
+  owner @{HOME}/.local/share/clamavui/db/** rwk,\n\
+und danach ausführen:\n\
+  sudo apparmor_parser -r /etc/apparmor.d/usr.bin.freshclam";
+
+/// Derive an actionable hint from a failed update's log lines, if a known cause is visible.
+pub fn update_hint_for_log(log: &[String]) -> Option<&'static str> {
+    log.iter()
+        .any(|line| line.contains(CONFIG_UNREADABLE))
+        .then_some(APPARMOR_HINT)
+}
+
 #[derive(Debug, Clone)]
 pub struct ScanProgress {
     pub started: Instant,
@@ -59,6 +80,8 @@ pub struct Model {
     pub summary: Option<ScanSummary>,
     pub update_log: Vec<String>,
     pub update_error: Option<String>,
+    /// Actionable advice derived from the update log (e.g. an AppArmor denial), German.
+    pub update_hint: Option<String>,
     /// `None` until the first status read completes.
     pub signature_status: Option<SignatureStatus>,
     pub signature_error: Option<String>,
@@ -81,6 +104,7 @@ impl Model {
             summary: None,
             update_log: Vec::new(),
             update_error: None,
+            update_hint: None,
             signature_status: None,
             signature_error: None,
             next_finding_id: 1,
@@ -200,6 +224,7 @@ impl Model {
         }
         self.update_log.clear();
         self.update_error = None;
+        self.update_hint = None;
         self.phase = Phase::Updating;
         Ok(())
     }
@@ -222,6 +247,7 @@ impl Model {
                         Some(code) => format!("freshclam beendet mit Exit-Code {code}"),
                         None => "freshclam wurde durch ein Signal beendet".into(),
                     });
+                    self.update_hint = update_hint_for_log(&self.update_log).map(str::to_string);
                 }
                 self.phase = Phase::Idle;
                 true
@@ -410,6 +436,36 @@ mod tests {
         assert!(m.apply_update_event(UpdateEvent::SpawnFailed("boom".into())));
         assert_eq!(m.update_error.as_deref(), Some("freshclam konnte nicht gestartet werden: boom"));
         assert!(m.is_idle());
+    }
+
+    #[test]
+    fn apparmor_denial_in_log_yields_hint() {
+        let mut m = Model::new();
+        m.begin_update().unwrap();
+        m.apply_update_event(UpdateEvent::Line(
+            "ERROR: Can't open/parse the config file /home/x/.config/clamavui/freshclam.conf".into(),
+        ));
+        assert!(m.apply_update_event(UpdateEvent::Finished { exit_code: Some(2) }));
+        assert_eq!(m.update_error.as_deref(), Some("freshclam beendet mit Exit-Code 2"));
+        let hint = m.update_hint.expect("hint for AppArmor denial");
+        assert!(hint.contains("AppArmor"));
+        assert!(hint.contains("apparmor_parser -r /etc/apparmor.d/usr.bin.freshclam"));
+        assert!(hint.contains("owner @{HOME}/.local/share/clamavui/db/** rwk,"));
+
+        // A successful run clears the hint again.
+        m.begin_update().unwrap();
+        assert!(m.apply_update_event(UpdateEvent::Finished { exit_code: Some(0) }));
+        assert!(m.update_hint.is_none());
+    }
+
+    #[test]
+    fn other_update_failures_have_no_hint() {
+        let mut m = Model::new();
+        m.begin_update().unwrap();
+        m.apply_update_event(UpdateEvent::Line("ERROR: Can't download daily.cvd".into()));
+        assert!(m.apply_update_event(UpdateEvent::Finished { exit_code: Some(1) }));
+        assert!(m.update_hint.is_none());
+        assert_eq!(update_hint_for_log(&[]), None);
     }
 
     #[test]

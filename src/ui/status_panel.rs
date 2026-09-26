@@ -77,6 +77,16 @@ pub fn show(
     if let Some(err) = &model.update_error {
         ui.colored_label(Color32::LIGHT_RED, format!("Update fehlgeschlagen: {err}"));
     }
+    if let Some(hint) = &model.update_hint {
+        // First line is prose, indented lines are commands/config to copy.
+        for line in hint.lines() {
+            if line.starts_with("  ") {
+                ui.monospace(line.trim_start());
+            } else {
+                ui.label(line);
+            }
+        }
+    }
     if !model.update_log.is_empty() {
         let open = matches!(model.phase, Phase::Updating) || model.update_error.is_some();
         egui::CollapsingHeader::new("Update-Protokoll")

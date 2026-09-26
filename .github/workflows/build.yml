@@ -24,8 +24,10 @@ jobs:
             os: windows-latest
           - name: macos-aarch64
             os: macos-latest
+          # No Intel runners needed: cross-compile on Apple Silicon, tests run natively there.
           - name: macos-x86_64
-            os: macos-13
+            os: macos-latest
+            target: x86_64-apple-darwin
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -41,24 +43,32 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
+      - name: Add cross target
+        if: matrix.target != ''
+        run: rustup target add ${{ matrix.target }}
+
       - name: Test
+        if: matrix.target == ''
         run: cargo test --locked
 
       - name: Clippy
+        if: matrix.target == ''
         run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Build release
-        run: cargo build --release --locked
+        run: cargo build --release --locked ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
 
       - name: Package
         shell: bash
         run: |
           mkdir -p dist
+          bin_dir="target/${{ matrix.target }}/release"
+          [ -n "${{ matrix.target }}" ] || bin_dir="target/release"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp target/release/clamavui.exe dist/
+            cp "$bin_dir/clamavui.exe" dist/
             (cd dist && 7z a ../clamavui-${{ matrix.name }}.zip clamavui.exe)
           else
-            cp target/release/clamavui dist/
+            cp "$bin_dir/clamavui" dist/
             tar -C dist -czf clamavui-${{ matrix.name }}.tar.gz clamavui
           fi
 

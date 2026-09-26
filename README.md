@@ -12,7 +12,7 @@ Graphical front end for the ClamAV virus scanner (Linux, Windows, macOS), writte
 
 ## Downloads and CI
 
-Every push to `main` builds and tests on Linux, Windows, macOS (Apple Silicon) and macOS (Intel)
+Every push to `main` builds and tests on Linux, Windows and macOS (Apple Silicon; the Intel build is cross-compiled there)
 via GitHub Actions; the binaries are attached to the workflow run as artifacts. Pushing a tag
 `v*` additionally publishes a GitHub release with all four archives.
 

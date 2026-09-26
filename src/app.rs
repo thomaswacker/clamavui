@@ -147,7 +147,9 @@ impl ClamApp {
     }
 
     fn scan_missing_reason(&self) -> Option<&'static str> {
-        if self.binaries.clamscan.is_none() {
+        if !self.model.is_idle() {
+            Some("Scan oder Update läuft")
+        } else if self.binaries.clamscan.is_none() {
             Some("clamscan nicht gefunden (siehe Einstellungen)")
         } else if !self.model.signatures_available() {
             Some("Erst Signaturen laden")

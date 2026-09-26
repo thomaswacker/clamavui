@@ -19,10 +19,11 @@ pub fn show(
 ) -> ScanAction {
     let mut action = ScanAction::None;
     let scanning = matches!(model.phase, Phase::Scanning(_));
+    let busy = !model.is_idle();
 
     ui.heading("Scan");
     ui.horizontal(|ui| {
-        ui.add_enabled_ui(!scanning, |ui| {
+        ui.add_enabled_ui(!busy, |ui| {
             if ui.button("Datei wählen…").clicked() {
                 action = ScanAction::PickFiles;
             }
@@ -43,7 +44,7 @@ pub fn show(
             .show(ui, |ui| {
                 for (i, target) in model.targets.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(!scanning, egui::Button::new("✕").small()).clicked() {
+                        if ui.add_enabled(!busy, egui::Button::new("✕").small()).clicked() {
                             remove = Some(i);
                         }
                         ui.monospace(target.display().to_string());

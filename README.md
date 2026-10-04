@@ -23,17 +23,49 @@ They are not code-signed, so the operating system warns once on first start.
 
 ### macOS
 
-1. Install ClamAV with Homebrew: `brew install clamav`. The app finds the tools in
-   `/opt/homebrew/bin` (Apple Silicon) or `/usr/local/bin` (Intel) automatically.
-2. Download `clamavui-macos-aarch64.tar.gz` (Apple Silicon) or `clamavui-macos-x86_64.tar.gz` (Intel)
-   and unpack it: `tar -xzf clamavui-macos-*.tar.gz`.
-3. Remove the quarantine flag once, then start the app:
+Prerequisite: [Homebrew](https://brew.sh) and ClamAV (`brew install clamav`).
 
-       xattr -d com.apple.quarantine clamavui
-       ./clamavui
+**Quick install (Apple Silicon and Intel):**
 
-   Alternatively right-click `clamavui` in Finder and choose "Open" to bypass Gatekeeper.
-4. Optional: move `clamavui` to `/usr/local/bin` or `~/bin` to have it in your PATH.
+```bash
+curl -fsSL https://raw.githubusercontent.com/thomaswacker/clamavui/main/install_clamavui_macos.sh | bash
+```
+
+Prefer to read the script first?
+
+```bash
+curl -fsSL -O https://raw.githubusercontent.com/thomaswacker/clamavui/main/install_clamavui_macos.sh
+less install_clamavui_macos.sh
+bash install_clamavui_macos.sh
+```
+
+The script downloads the latest release for your CPU, removes the quarantine
+flag, wraps the binary in `ClamAV UI.app` (with icon) and installs it to
+`/Applications` (or `~/Applications` if `/Applications` is not writable).
+Run it again at any time to update.
+
+On first start click "Aktualisieren" to download the signatures (about 300 MB).
+ClamAV UI keeps its own signature database and `freshclam.conf`; the Homebrew
+configuration is not used and does not need to be changed.
+
+**Uninstall:** delete `ClamAV UI.app` from `/Applications`. Signature database
+and settings are stored separately (see "Signatures" below).
+
+<details>
+<summary>Manual installation</summary>
+
+(existing steps 2-4 here)
+
+</details>
+
+#### Troubleshooting (macOS)
+
+- **"clamscan/freshclam/sigtool not found"**: apps started from Finder do not
+  inherit your shell's PATH. Homebrew locations are detected automatically;
+  other paths can be set under "Einstellungen".
+- **Gatekeeper warning on first start**: right-click the app, choose "Öffnen",
+  or allow it under System Settings → Privacy & Security.
+- **Download fails**: the script needs a published release (tag `v*`).
 
 ### Windows
 
@@ -101,52 +133,6 @@ These distributions ship an AppArmor profile for `freshclam` that only permits
 
 `clamscan` has no profile and is not affected. The app shows the same hint when it
 detects this error in the update log.
-
-## macOS
-
-Prerequisite: [Homebrew](https://brew.sh) and ClamAV (`brew install clamav`).
-
-**Quick install (Apple Silicon and Intel):**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thomaswacker/clamavui/main/install_clamavui_macos.sh | bash
-```
-
-Prefer to read the script first?
-
-```bash
-curl -fsSL -O https://raw.githubusercontent.com/thomaswacker/clamavui/main/install_clamavui_macos.sh
-less install_clamavui_macos.sh
-bash install_clamavui_macos.sh
-```
-
-The script downloads the latest release for your CPU, removes the quarantine
-flag, wraps the binary in `ClamAV UI.app` (with icon) and installs it to
-`/Applications` (or `~/Applications` if `/Applications` is not writable).
-Run it again at any time to update.
-
-On first start click "Aktualisieren" to download the signatures (about 300 MB).
-ClamAV UI keeps its own signature database and `freshclam.conf`; the Homebrew
-configuration is not used and does not need to be changed.
-
-**Uninstall:** delete `ClamAV UI.app` from `/Applications`. Signature database
-and settings are stored separately (see "Signatures" below).
-
-<details>
-<summary>Manual installation</summary>
-
-(existing steps 2-4 here)
-
-</details>
-
-#### Troubleshooting (macOS)
-
-- **"clamscan/freshclam/sigtool not found"**: apps started from Finder do not
-  inherit your shell's PATH. Homebrew locations are detected automatically;
-  other paths can be set under "Einstellungen".
-- **Gatekeeper warning on first start**: right-click the app, choose "Öffnen",
-  or allow it under System Settings → Privacy & Security.
-- **Download fails**: the script needs a published release (tag `v*`).
 
 ## License
 
